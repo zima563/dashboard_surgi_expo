@@ -3,6 +3,7 @@ import {
   CForm,
   CFormInput,
   CFormLabel,
+  CFormSelect,
   CFormTextarea,
   CInputGroup,
   CInputGroupText,
@@ -26,16 +27,35 @@ const Products = () => {
   const [visible, setVisible] = useState(false)
   const [visibleAdd, setVisibleAdd] = useState(false)
   const [visibleDelete, setVisibleDelete] = useState(false)
-  const [products, setProducts] = useState([])
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [id, setId] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [brief, setBrief] = useState('')
+  const [catId, setCatId] = useState('')
 
   const [imgCover, setImgCover] = useState(null)
+  const [imgCoverI, setImgCoverI] = useState(null)
   const [images, setImages] = useState([])
+  const [imagesI, setImagesI] = useState([])
   const [loading, setLoading] = useState(false)
+  const token = localStorage.getItem("authToken");
+
+  const fetchCategoeries = async () => {
+    try {
+      const res = await axios.get('https://api.surgi-expo.com/api/categories/sub')
+      setCategories(res.data.categories)
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchCategoeries()
+  }, [])
+
 
   const fetchProducts = async () => {
     try {
@@ -75,6 +95,7 @@ const Products = () => {
   const handleImgCoverChange = (e) => {
     const file = e.target.files[0]
     setImgCover(URL.createObjectURL(file))
+    setImgCoverI(file);
     setSelectedProduct((prev) => ({
       ...prev,
       imgCover: file,
@@ -86,6 +107,7 @@ const Products = () => {
     const files = Array.from(e.target.files)
     const imageUrls = files.map((file) => URL.createObjectURL(file))
     setImages([...images, ...imageUrls])
+    setImagesI([...imagesI, ...files])
     setSelectedProduct((prev) => ({
       ...prev,
       images: [...(prev.images || []), ...files],
@@ -110,6 +132,7 @@ const Products = () => {
 
   // Save changes to the selected product
   const handleSaveChanges = async () => {
+    setLoading(true)
     const formData = new FormData()
     formData.append('title', selectedProduct.title)
     formData.append('description', selectedProduct.description)
@@ -133,7 +156,7 @@ const Products = () => {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization:
-            'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzAzYjMzMDE1NTc5NjcxZTI2OTZlMDAiLCJpYXQiOjE3MjgyOTU3MzV9.OdaYfcKfBv-KeLZy8ap1PJiI6AYVlkxzxRHNI-msUSE',
+            `Bearer ${token}`,
         },
       })
       fetchProducts() // Refresh product list after update
@@ -142,20 +165,24 @@ const Products = () => {
       setSelectedProduct(null)
     } catch (error) {
       console.error('Error updating product:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleAddProduct = async () => {
+    setLoading(true)
     const formData = new FormData()
     formData.append('title', title)
     formData.append('description', description)
     formData.append('brief', brief)
+    formData.append("category", catId)
 
-    if (imgCover instanceof File) {
-      formData.append('imgCover', imgCover)
+    if (imgCoverI instanceof File) {
+      formData.append('imgCover', imgCoverI)
     }
 
-    images.forEach((image) => {
+    imagesI.forEach((image) => {
       if (image instanceof File) {
         formData.append('images', image)
       }
@@ -165,7 +192,7 @@ const Products = () => {
       await axios.post('https://api.surgi-expo.com/api/products', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-          Authorization: 'Bearer YOUR_TOKEN_HERE',
+          Authorization: `Bearer ${token}`,
         },
       })
       fetchProducts() // Refresh product list after adding
@@ -179,6 +206,8 @@ const Products = () => {
       setImages([])
     } catch (error) {
       console.error('Error adding product:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -187,7 +216,7 @@ const Products = () => {
     try {
       await axios.delete(`https://api.surgi-expo.com/api/products/${id}`, {
         headers: {
-          Authorization: 'Bearer YOUR_TOKEN_HERE',
+          Authorization: `Bearer ${token}`,
         },
       })
       fetchProducts() // Refresh product list after deletion
@@ -198,6 +227,14 @@ const Products = () => {
       setLoading(false)
     }
   }
+
+  const closeModal = () => {
+    setVisible(false);
+    setSelectedProduct(null);
+    setImgCover(null);
+    setImages([]);
+  };
+
   return (
     <>
       <div className="d-flex justify-content-end mb-3">
@@ -227,17 +264,17 @@ const Products = () => {
                   color="primary"
                   style={{ width: '80px' }}
                   onClick={() => {
-                    setId(pro._id)
-                    fetchProduct(pro._id)
+                    setId(pro.id)
+                    fetchProduct(pro.id)
                     setVisible(true)
                   }}
                 >
                   Edit
                 </CButton>
                 <CButton color="danger" style={{ width: '80px' }} className="mt-2" onClick={() => {
-                    setId(pro._id)
-                    setVisibleDelete(true) // Open delete confirmation modal
-                  }}>
+                  setId(pro.id)
+                  setVisibleDelete(true) // Open delete confirmation modal
+                }}>
                   Delete
                 </CButton>
               </CTableDataCell>
@@ -246,7 +283,7 @@ const Products = () => {
         </CTableBody>
       </CTable>
 
-      <CModal visible={visibleAdd} onClose={() => setVisibleAdd(false)}>
+      <CModal visible={visibleAdd} onClose={closeModal}>
         <CModalHeader>
           <CModalTitle>Add Product</CModalTitle>
         </CModalHeader>
@@ -272,6 +309,14 @@ const Products = () => {
                 onChange={(e) => setBrief(e.target.value)}
               ></CFormTextarea>
             </div>
+
+            <div className="mb-3">
+              <CFormSelect aria-label="Default select example" value={catId || ""} onChange={(e) => setCatId(e.target.value)}>
+                <option>Open this select menu</option>
+                {categories.map((cat, index) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+              </CFormSelect>
+            </div>
+
 
             {/* Display imgCover */}
             <div className="mb-3">
@@ -335,17 +380,19 @@ const Products = () => {
             color="secondary"
             onClick={() => {
               setVisibleAdd(false)
+              setImgCover(null)
+              setImages([])
             }}
           >
             Close
           </CButton>
           <CButton color="primary" onClick={handleAddProduct} disabled={loading}>
-            Add Product
+            {loading ? <CSpinner size="sm" /> : 'Add Product'}
           </CButton>
         </CModalFooter>
       </CModal>
 
-      <CModal visible={visible} onClose={() => setVisible(false)}>
+      <CModal visible={visible} onClose={closeModal}>
         <CModalHeader>
           <CModalTitle>Edit Product</CModalTitle>
         </CModalHeader>
@@ -385,6 +432,16 @@ const Products = () => {
                     setSelectedProduct((prev) => ({ ...prev, brief: e.target.value }))
                   }
                 ></CFormTextarea>
+              </div>
+
+              <div className="mb-3">
+                <CFormSelect aria-label="Default select example" value={selectedProduct?.category?._id || ""} onChange={(e) => setSelectedProduct((prev) => ({
+                  ...prev,
+                  category: e.target.value,
+                }))}>
+                  <option>{selectedProduct?.category?.name}</option>
+                  {categories.map((cat, index) => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                </CFormSelect>
               </div>
 
               {/* Display imgCover */}
@@ -448,40 +505,37 @@ const Products = () => {
               </div>
             </CForm>
           ) : (
-            <p>No product data available</p>
+            <p>No product data found.</p>
           )}
         </CModalBody>
         <CModalFooter>
-          <CButton
-            color="secondary"
-            onClick={() => {
-              setVisible(false)
-              setId(null)
-            }}
-          >
+          <CButton color="secondary" onClick={closeModal}>
             Close
           </CButton>
           <CButton color="primary" onClick={handleSaveChanges} disabled={loading}>
-            Save Changes
+            {loading ? <CSpinner size="sm" /> : 'Save Changes'}
           </CButton>
         </CModalFooter>
       </CModal>
+
       <CModal visible={visibleDelete} onClose={() => setVisibleDelete(false)}>
         <CModalHeader>
-          <CModalTitle>Confirm Deletion</CModalTitle>
+          <CModalTitle>Delete Product</CModalTitle>
         </CModalHeader>
         <CModalBody>
           Are you sure you want to delete this product?
         </CModalBody>
         <CModalFooter>
-          <CButton color="secondary" onClick={() => setVisibleDelete(false)}>Cancel</CButton>
+          <CButton color="secondary" onClick={() => setVisibleDelete(false)}>
+            Cancel
+          </CButton>
           <CButton color="danger" onClick={handleDelete} disabled={loading}>
-            Delete
+            {loading ? <CSpinner size="sm" /> : 'Delete'}
           </CButton>
         </CModalFooter>
       </CModal>
     </>
-  )
-}
+  );
+};
 
-export default Products
+export default Products;
